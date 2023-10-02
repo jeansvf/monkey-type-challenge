@@ -1,35 +1,26 @@
-import {useState, useEffect, KeyboardEventHandler} from "react"
+import {useState, useEffect, KeyboardEventHandler, useRef} from "react"
 import wordList from "./wordList"
 
 function App() {
     const [words, setWords] = useState<string[]>([])
-    const [typedWords, setTypedWords] = useState<string[]>([])
+    const [wordsDelay, setWordsDelay] = useState<string[]>([])
     const [currentWord, setCurrentWord] = useState("")
     const [currentKey, setCurrentKey] = useState(0)
-    const [gameEnded, setGameEnded] = useState(false)
-    const [lastKey, setLastKey] = useState(0)
+    const [startWordDate, setStartWordDate] = useState<string>("")
+    const [started, setStarted] = useState(false)
+    const [gameEnd, setGameEnd] = useState(false)
 
-    var wordsPerMinute = 0
+    const wordsPerMinute = useRef(0)
 
-    // TODO: randomize the words
     useEffect(() => {
-        let newWords = []
-
-        for (let i = 0; i < 25; i++) {
-            newWords.push(wordList[i] + " ")
-        }
-
-        setLastKey(newWords.length - 2)
-
-        newWords[newWords.length - 1] = newWords[newWords.length - 1].slice(
-            0,
-            -1
-        )
-
-        setWords(newWords)
+        generateWords()
     }, [])
 
     const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
+        if (event.key == "Escape") {
+            resetGame()
+        }
+
         if (event.key == "Backspace") {
             let newCurrentWord = structuredClone(currentWord)
 
@@ -37,6 +28,8 @@ function App() {
 
             return
         }
+
+        if (currentWord.length > 22) return
 
         if (
             (event.key.toUpperCase() !== event.key.toLowerCase() &&
@@ -49,25 +42,66 @@ function App() {
         }
     }
 
-    const endGame = () => {
-        setGameEnded(true)
+    const generateWords = () => {
+        let newWords: string[] = []
+        let randomNumbers: number[] = []
 
-        //TODO: wpm
+        for (let i = 0; i < 25; i++) {
+            let number: number = 0
+            do {
+                number = Math.floor(Math.random() * wordList.length)
+            } while (randomNumbers.includes(number))
+
+            randomNumbers.push(number)
+            newWords.push(wordList[number] + " ")
+        }
+
+        newWords[newWords.length - 1] = newWords[newWords.length - 1].slice(
+            0,
+            -1
+        )
+
+        setWords(newWords)
+    }
+
+    const endGame = () => {
+        let totalTime = 0
+        wordsDelay.map((word) => (totalTime += Number(word)))
+        wordsPerMinute.current = 25 / (totalTime / 60000)
+    }
+
+    const resetGame = () => {
+        generateWords()
+        setWordsDelay([])
+        setCurrentWord("")
+        setCurrentKey(0)
+        setStartWordDate("")
+        setStarted(false)
+        setGameEnd(false)
     }
 
     useEffect(() => {
-        console.log(currentWord)
-
-        currentKey === lastKey ? endGame() : null
+        currentKey === 25 ? (endGame(), setGameEnd(true)) : null
     }, [currentKey])
 
     useEffect(() => {
         if (currentWord === words[currentKey]) {
-            console.log(currentWord)
-            console.log(words[currentKey])
+            setWordsDelay([
+                ...wordsDelay,
+                (Date.now() - Number(startWordDate)).toString(),
+            ])
+
+            setStartWordDate(Date.now().toString())
 
             setCurrentKey(currentKey + 1)
             setCurrentWord("")
+
+            return
+        }
+
+        if (!started && currentWord.length > 0) {
+            setStartWordDate(Date.now().toString())
+            setStarted(true)
         }
     }, [currentWord])
 
@@ -75,37 +109,83 @@ function App() {
         <div
             className="flex w-full h-screen justify-center items-center"
             onKeyDown={handleKeyDown}
+            autoFocus={true}
             tabIndex={0}
         >
-            <div className="relative w-[30rem] flex flex-wrap justify-center text-start text-[#565656] text-2xl">
-                <>
-                    {/* CONTINUE: figure a way to turn the wrong colors red (you probably will have to create other variable idk or compare the values with last letter of current word) */}
-                    {words.map((word, index) => (
-                        <pre className="relative flex" key={index}>
-                            {index == currentKey ? (
-                                <>
-                                    <span className="absolute left-0 top-0 text-white">
-                                        {currentWord}
-                                    </span>
-                                    {currentWord.length > word.length
-                                        ? currentWord
-                                        : word}
-                                </>
-                            ) : (
-                                <span>{word}</span>
-                            )}
-                        </pre>
-                    ))}
-                </>
+            <div className="relative w-[60rem] flex flex-wrap justify-center text-start text-[#565656] text-2xl">
+                <input className="w-0 h-0" type="text" autoFocus />
+                {!gameEnd
+                    ? words.map((word, index) => (
+                          <pre
+                              className="relative inline text-5xl leading-[3.8rem]"
+                              key={index}
+                          >
+                              {index == currentKey ? (
+                                  <>
+                                      <span className="">
+                                          {currentWord.length >= word.length ? (
+                                              <>
+                                                  {word.slice(0, -1)}
+                                                  <span className="text-red-500">
+                                                      {currentWord.slice(
+                                                          word.length - 1
+                                                      )}
+                                                  </span>
+                                              </>
+                                          ) : (
+                                              word
+                                          )}
+                                      </span>
 
-                {/* {gameEnded ? (
-                    <div>
-                        <p className="text-3xl font-bold">Done!</p>
-                        <p className="text-xl font-bold">
-                            WPM was: {wordsPerMinute}
+                                      <span className="absolute left-0 top-0 text-white">
+                                          {[...currentWord].map(
+                                              (letter, letterIndex) => (
+                                                  <span
+                                                      className={`${
+                                                          words[currentKey][
+                                                              letterIndex
+                                                          ] !== letter
+                                                              ? "text-red-400"
+                                                              : "text-yellow-300"
+                                                      }`}
+                                                      key={letterIndex}
+                                                  >
+                                                      {letter ==
+                                                      words[currentKey][
+                                                          letterIndex
+                                                      ]
+                                                          ? letter
+                                                          : words[currentKey][
+                                                                letterIndex
+                                                            ]}
+                                                  </span>
+                                              )
+                                          )}
+                                      </span>
+                                  </>
+                              ) : (
+                                  <span
+                                      className={`${
+                                          index < currentKey
+                                              ? "text-yellow-300"
+                                              : ""
+                                      }`}
+                                  >
+                                      {word}
+                                  </span>
+                              )}
+                          </pre>
+                      ))
+                    : null}
+
+                {gameEnd ? (
+                    <div className="text-center">
+                        <p className="text-5xl font-bold text-white">Done!</p>
+                        <p className="text-3xl font-bold text-yellow-300">
+                            WPM: {Math.floor(wordsPerMinute.current)}
                         </p>
                     </div>
-                ) : null} */}
+                ) : null}
             </div>
         </div>
     )

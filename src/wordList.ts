@@ -147,8 +147,6 @@ export default [
     "child",
     "choice",
     "choose",
-    "Christ",
-    "Christmas",
     "church",
     "city",
     "claim",
